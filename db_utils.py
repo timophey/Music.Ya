@@ -17,14 +17,59 @@ def update_favorites(favorites_list):
     conn.commit()
     conn.close()
 
+def get_track(entity_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            tracks.title, tracks.id as track_id, track_index, track_count, disc_number,
+            artists.name as artists_name,
+            albums.title as album_title, albums.release_date, albums.year
+        FROM tracks
+        LEFT JOIN artists ON tracks.artist_id = artists.yandex_artist_id
+        LEFT JOIN albums ON tracks.album_id = albums.yandex_album_id
+        WHERE tracks.yandex_track_id = ?
+    """, (int(entity_id),))
+    rows = cursor.fetchall()
+    if not rows:
+        return {}
+    keys = [desc[0] for desc in cursor.description]
+    conn.close()
+    return [dict(zip(keys, row)) for row in rows][0]
+    
 def get_favorite_tracks():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    #  id, entity_id
+    cursor.execute("""
+        SELECT 
+            favorites.entity_id, favorites.added_at,
+            tracks.title, tracks.id as track_id,
+            artists.name as artists_name,
+            albums.title as album_title, albums.year
+        FROM favorites
+        LEFT JOIN tracks ON favorites.entity_id = tracks.yandex_track_id
+        LEFT JOIN artists ON tracks.artist_id = artists.yandex_artist_id
+        LEFT JOIN albums ON tracks.album_id = albums.yandex_album_id
+        WHERE favorites.entity_type = 'track'
+        ORDER BY favorites.added_at
+    """)
+    rows = cursor.fetchall()
+    keys = [desc[0] for desc in cursor.description]
+    conn.close()
+    return [dict(zip(keys, row)) for row in rows]
+    # return [{'id': r[0], } for r in rows]
+    # return rows
+
+def get_favorite_tracks_bac():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         SELECT artists.name AS artist, tracks.title
         FROM favorites
-        JOIN tracks ON favorites.entity_id = tracks.id
-        LEFT JOIN artists ON tracks.artist_id = artists.id
+        LEFT JOIN tracks ON favorites.entity_id = tracks.id
+        LEFT JOIN artists ON tracks.artist_id = artists.yandex_artist_id
+        LEFT JOIN albums ON tracks.artist_id = albums.yandex_album_id
         WHERE favorites.entity_type = 'track'
         ORDER BY tracks.title
     """)
@@ -47,6 +92,72 @@ def update_tracks(tracks_list):
         """, (t['yandex_track_id'], t['title'], t['artist']))
     conn.commit()
     conn.close()
+
+def insert_or_replace(table_name: str, obj: dict):
+    keys = obj.keys()
+    placeholders = ', '.join(['?'] * len(keys))
+    columns = ', '.join(keys)
+    sql = f"INSERT OR REPLACE INTO {table_name} ({columns}) VALUES ({placeholders})"
+    values = tuple(obj[k] for k in keys)
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(sql, values)
+    conn.commit()
+    conn.close()
+
+def update_tracks_from_api(tracks_list):
+    # print(track); 
+    for track in tracks_list:
+
+        track_index = 0
+        track_count = 0
+        disc_number = 0
+
+        for album in track.albums:
+            if album and album.track_position:
+                pos = album.track_position
+                if hasattr(pos, 'index'):
+                    track_index = str(pos.index)
+                if hasattr(album, 'track_count'):
+                    track_count = str(album.track_count)
+                if hasattr(pos, 'volume'):
+                    disc_number = str(pos.volume)
+                break
+
+        track_dict = {
+            "yandex_track_id": track.id,
+            "title": track.title,
+            "artist_id": track.artists[0].id,
+            "album_id": track.albums[0].id,
+            "cover_url": track.cover_uri,
+            "track_index": track_index,
+            "track_count": track_count,
+            "disc_number": disc_number,
+            "duration": track.duration_ms
+        }
+        insert_or_replace('tracks', track_dict)
+        update_artists_from_api(track.artists)
+        update_albums_from_api(track.albums)
+
+def update_artists_from_api(items):
+    for item in items:
+        insert_or_replace('artists', {
+            "yandex_artist_id": item.id,
+            "name": item.name,
+            "url": f"https://music.yandex.ru/artist/{item.id}",
+        })
+
+def update_albums_from_api(items):
+    for item in items:
+        insert_or_replace('albums', {
+            "yandex_album_id": item.id,
+            "title": item.title,
+            "url": f"https://music.yandex.ru/album/{item.id}",
+            "release_date": item.release_date,
+            "year": item.year,
+        })
+
 
 def get_favorite_artists():
     conn = sqlite3.connect(DB_PATH)
@@ -116,7 +227,7 @@ def update_albums(api_albums):
         # Вставляем или обновляем альбом
         cursor.execute("""
             INSERT OR REPLACE INTO albums
-            (yandex_album_id, title, artist_id, release_date, cover_url, url)
+            (yandex_album_id, title, artist_id, release_date, cover_uri, url)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (
             album.id,

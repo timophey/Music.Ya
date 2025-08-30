@@ -12,7 +12,11 @@ CREATE TABLE tracks (
     artist TEXT,
     album_id INTEGER,
     duration INTEGER,
+    track_index INTEGER,
+    track_count INTEGER,
+    disc_number INTEGER,
     local_path TEXT,
+    cover_url TEXT,
     url TEXT,
     added_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -23,7 +27,8 @@ CREATE TABLE albums (
     title TEXT NOT NULL,
     artist_id INTEGER,
     release_date TEXT,
-    cover_url TEXT,
+    year INTEGER,
+    cover_uri TEXT,
     url TEXT,
     added_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -34,6 +39,7 @@ CREATE TABLE artists (
     name TEXT NOT NULL,
     bio TEXT,
     url TEXT,
+    cover_url TEXT,
     added_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -47,8 +53,8 @@ CREATE TABLE playlists (
 );
 
 CREATE TABLE favorites (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     entity_type TEXT NOT NULL,
     entity_id INTEGER NOT NULL,
-    added_at TEXT DEFAULT CURRENT_TIMESTAMP
+    added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (entity_type, entity_id)
 );
