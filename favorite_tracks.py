@@ -24,13 +24,13 @@ def get_table_widths():
 
 def bind(self):
     self.list_widget.add_handlers({
-        'i': load_track_info_by_entity_id
+        'i': action_fetch_current_track
     })
     self.list_widget.add_handlers({
-        'd': show_download_path
+        'd': action_show_current_download_path
     })
     self.list_widget.add_handlers({
-        'D': do_download,
+        'D': action_download_current_track,
     })
     self.load_missed = self.add(npyscreen.ButtonPress, name="Load missed")
     self.load_missed.whenPressed = load_missed_tracks_all
@@ -83,8 +83,8 @@ def load_and_save_track_info(entity_id):
         current_parent.refresh_display()
     # save as dump
     try:    
-        os.makedirs('storage')
-        with open(f"storage/track_{entity_id}_data.json", 'w') as f:
+        os.makedirs('storage/json', exist_ok=True)
+        with open(f"storage/json/track_{entity_id}_data.json", 'w') as f:
             f.write(jsonpickle.encode(track_list[0]))
     except:
         pass
@@ -101,7 +101,15 @@ def load_and_show_track_info(entity_id):
     npyscreen.notify_confirm(jsonpickle.encode(track), title=f"Информация по треку {entity_id}")
     # npyscreen.notify_confirm(f"{current_parent}", title=f"Информация по треку {entity_id}")
 
-def load_track_info_by_entity_id(_input):
+def get_current_entity_id():
+    idx = current_position
+    if idx < 0 or idx >= len(current_list):
+        return
+    line = current_list[idx]
+    entity_id = line.get('entity_id')
+    return entity_id
+
+def action_fetch_current_track(_input):
     idx = current_position
     # npyscreen.notify_confirm(f"{current_list}", title=f"Информация по треку {idx}")
     if idx < 0 or idx >= len(current_list):
@@ -110,14 +118,14 @@ def load_track_info_by_entity_id(_input):
     entity_id = line.get('entity_id')
     load_and_show_track_info(entity_id)
 
-def show_download_path(_input):
+def action_show_current_download_path(_input):
     idx = current_position
     if idx < 0 or idx >= len(current_list):
         return    
     line = current_list[idx]
     # npyscreen.notify_confirm(f"{line}", title=f"Информация по треку {idx}")
     entity_id = line.get('entity_id')
-    # npyscreen.notify_confirm(f"{entity_id}", title=f"show_download_path")
+    # npyscreen.notify_confirm(f"{entity_id}", title=f"action_show_current_download_path")
     current_parent.debug_widget.value = file_utils.track_download_path(entity_id)['fullpath']
     current_parent.debug_widget.display()
 
@@ -162,5 +170,13 @@ def sync_from_api():
     # db_utils.update_tracks(tracks_to_store)
 
 
-def do_download(_input):
-    npyscreen.notify_confirm(f"download", title=f"data")
+def action_download_current_track(_input):
+    entity_id = get_current_entity_id()
+    # npyscreen.notify_confirm(f"download {entity_id}", title=f"data")
+    current_parent.start_spinner()
+    file_utils.track_download(entity_id, 'favorite_tracks')
+    current_parent.stop_spinner()
+    current_parent.list_widget.cursor_line += 1
+    current_parent.list_widget.display()
+
+    # track_download()

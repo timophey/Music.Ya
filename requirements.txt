@@ -1,3 +1,4 @@
 yandex-music
 python-dotenv
 npyscreen
+mutagen
