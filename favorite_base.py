@@ -21,6 +21,7 @@ class FavoritesBaseForm(npyscreen.ActionForm):
         
         self.spinner_widget = self.add(npyscreen.FixedText, value="Готов...", editable=False)
 
+        self.list_header = self.add(npyscreen.FixedText, value="/", color="IMPORTANT")
         self.list_widget = self.add(npyscreen.MultiLine, values=[], max_height=-4, scroll_exit=True)
         self.list_widget.when_cursor_moved = self.on_scroll
         self.status = self.add(npyscreen.FixedText, value="Статус: готов")
@@ -65,6 +66,19 @@ class FavoritesBaseForm(npyscreen.ActionForm):
 
     def format_table(self, data, keys, col_widths):
         lines = []
+
+        # Вычисляем минимальную ширину каждого столбца с учётом заголовков
+        adjusted_widths = [max(len(str(k)), w) for k, w in zip(keys, col_widths)]
+        adjusted_widths = [
+            min(max(len(str(k)), w), w)  # max длина между заголовком и 0, но максимально w
+            for k, w in zip(keys, col_widths)
+        ]
+
+        # Формируем строку заголовка с учетом ширин столбцов
+        header_cells = [str(key)[:w].ljust(w) for key, w in zip(keys, adjusted_widths)]
+        header_line = ' | '.join(header_cells)
+        self.list_header.value = header_line
+
         # Заголовок — без переноса
         # headers = keys
         # header_line = ' | '.join(h.ljust(w) for h, w in zip(headers, col_widths))
@@ -75,7 +89,7 @@ class FavoritesBaseForm(npyscreen.ActionForm):
             # cells = [str(getattr(row, key, '')) for key in keys]
             cells = [str(row.get(key, '')) for key in keys]
             # Обрезаем текст по ширине без переноса
-            cells_trimmed = [c[:w].ljust(w) for c, w in zip(cells, col_widths)]
+            cells_trimmed = [c[:w].ljust(w) for c, w in zip(cells, adjusted_widths)]
             line = ' | '.join(cells_trimmed)
             lines.append(line)
         return lines

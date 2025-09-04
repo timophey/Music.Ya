@@ -5,6 +5,7 @@ import npyscreen
 # import use_tracks_api.py
 import json
 import jsonpickle
+from log import logging
 from json import JSONEncoder
 import threading
 import os
@@ -46,6 +47,7 @@ def load_missed_tracks():
     global load_and_save_track_info
     # npyscreen.notify_confirm(f"[{current_position}:{current_position+current_list_limit}]") #  => {len(list)}
     if current_position % current_list_limit == 0 or current_position == 0:
+        # logging.warning(f"Start of page !")
         list = current_list[current_position:current_position+current_list_limit]#visible_count
         # npyscreen.notify_confirm(f"{list}", title=f"Информация")
         for item in list:

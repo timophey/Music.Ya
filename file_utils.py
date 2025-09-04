@@ -63,9 +63,11 @@ def track_download(entity_id, symlink_to = None):
         fill_tags(filepath['fullpath'], track_obj)
         # symlink
         if symlink_to:
-            symlink_path = os.path.join('storage', symlink_to, f"{track_obj.id} - {track_obj.title}.mp3")
-            if not os.path.exists(symlink_to):
-                os.makedirs(symlink_to, exist_ok=True)
+            symlink_dir  = os.path.join('storage', symlink_to)
+            symlink_path = os.path.join(symlink_dir, f"{track_obj.id} - {track_obj.title}.mp3")
+            if not os.path.exists(symlink_dir):
+                logging.warning(f"mkdir for symlink: {symlink_dir}")
+                os.makedirs(symlink_dir, exist_ok=True)
             if not os.path.exists(symlink_path):
                 relative_symlink(filepath['fullpath'], f"{symlink_path}")
 
