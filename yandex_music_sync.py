@@ -12,9 +12,10 @@ def check_venv():
 def print_help():
     help_text = """
 Использование:
-  python yandex_music_sync.py --create-db    Создать структуру SQLite базы из schema_dump.sql
-  python yandex_music_sync.py --interactive  Запустить интерактивный интерфейс
-  python yandex_music_sync.py --help         Показать эту справку
+  python3 yandex_music_sync.py --create-db    Создать структуру SQLite базы из schema_dump.sql
+  python3 yandex_music_sync.py --interactive  Запустить интерактивный интерфейс
+  python3 yandex_music_sync.py --tui          Запустить терминальный интерфейс
+  python3 yandex_music_sync.py --help         Показать эту справку
 """
     print(help_text)
 
@@ -34,6 +35,9 @@ def main():
     elif arg == '--interactive':
         import interactive_ui
         interactive_ui.MyApp().run()
+    elif arg == '--tui':
+        import tui
+        tui.TuiApp().run()
     else:
         print(f"Неизвестный параметр: {arg}")
         print_help()
