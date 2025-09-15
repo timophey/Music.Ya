@@ -12,10 +12,13 @@ api_utils = YandexMusicAPI()
 class SyncUtils:
     def __init__(self):
         self.task_queue = queue.Queue()
+        self.task_items = set()
+        self.lock = threading.Lock()
+
         self.worker_thread = threading.Thread(target=self.worker, daemon=True)
         self.worker_thread.start()
 
-        self.progress_entity_operation = ''
+        self.progress_operation = ''
         self.progress_entity_type = ''
         self.progress_entity_id = 0
 
@@ -29,14 +32,38 @@ class SyncUtils:
         self.progress_cb_done = None
 
     # Queue Manager
+    #------------------------#
+    # type  # operation # id #
+    #------------------------#
+    # track # fetch     # ?  #
+    # track # download  # ?  #
+    # track # favorites #    #
 
-    def add_task(self, entity_type, operation = 'fetch', entity_id = 0):
-        task = {
+    def obj_task(self, entity_type, operation = 'fetch', entity_id = 0):
+        return {
             'entity_type': entity_type,
             'entity_id': entity_id,
             'operation': operation,
         }
-        self.task_queue.put(task)
+
+    def add_task(self, entity_type, operation = 'fetch', entity_id = 0, fast = False):
+        task = self.obj_task(entity_type, operation, entity_id)
+        taskfrozen = frozenset(task.items())
+        if not fast:
+            with self.lock:
+                if not self.in_queue(task):
+                    self.task_queue.put(task)
+                    self.task_items.add(taskfrozen)
+                    self.sync_display()
+        else:
+            self.task_queue.put(task)
+            self.task_items.add(taskfrozen)
+
+    def in_queue(self, task):
+        return frozenset(task.items()) in self.task_items
+
+    def done_task(self, task):
+        self.task_items.discard(frozenset(task.items()))
 
     def worker(self):
         while True:
@@ -48,24 +75,46 @@ class SyncUtils:
 
 
     def do_sync_task(self, task):
+
+        self.progress_entity_type = task['entity_type']
+        self.progress_entity_id = task['entity_id']
+        self.progress_operation = task['operation']
+
+        self.start_spinner()
+
+        if task['entity_type'] == 'track' and task['operation'] == 'favorites':
+            self._sync_favorite_tracks_thread()
         if task['entity_type'] == 'track' and task['entity_id'] > 0 and task['operation'] == 'fetch':
-            self.sync_track(task['entity_id'])
+            self._sync_track_thread(task['entity_id'])
         if task['entity_type'] == 'track' and task['entity_id'] > 0 and task['operation'] == 'download':
-            self.download_track(task['entity_id'])
+            self._download_track_thread(task['entity_id'])
+
+        self.stop_spinner()
+        self.done_task(self.obj_task(task['entity_type'], task['operation'], task['entity_id']))
+        self.sync_display()
+        
         if(self.task_queue.qsize() > 0):
-            time.sleep(0.5)
+            time.sleep(0.1)
 
 
     def cancel(self):
+        
         self.task_queue.queue.clear()
-        self.task_queue.all_tasks_done.notify_all()
+        
+        self.task_queue.all_tasks_done.acquire()
+        try:
+            self.task_queue.all_tasks_done.notify_all()
+        finally:
+            self.task_queue.all_tasks_done.release()
         self.task_queue.unfinished_tasks = 0
+
+        self.task_items.clear()
 
 
     # update track list
 
     def sync_favorite_tracks(self):
-        self.progress_entity_operation = 'fetch'
+        self.progress_operation = 'fetch'
         self.progress_entity_type = 'favorite'
         self.progress_entity_id = 'tracks'
         self.start_spinner()
@@ -85,7 +134,7 @@ class SyncUtils:
     # update track info
 
     def sync_track(self, entity_id):
-        self.progress_entity_operation = 'fetch'
+        self.progress_operation = 'fetch'
         self.progress_entity_type = 'track'
         self.progress_entity_id = entity_id
 
@@ -107,7 +156,7 @@ class SyncUtils:
     # file_utils.track_download(entity_id, 'favorite_tracks')
 
     def download_track(self, entity_id):
-        self.progress_entity_operation = 'download'
+        self.progress_operation = 'download'
         self.progress_entity_type = 'track'
         self.progress_entity_id = entity_id
         self.start_spinner()
@@ -134,7 +183,7 @@ class SyncUtils:
         if hasattr(self, '_spinner_thread'):
             self._spinner_thread.join()
 
-        self.progress_entity_operation = ''
+        self.progress_operation = ''
         self.progress_entity_type = ''
         self.progress_entity_id = 0
 

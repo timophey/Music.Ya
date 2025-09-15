@@ -1,4 +1,5 @@
 import os
+import re
 
 import requests
 import db_utils
@@ -17,6 +18,9 @@ from mutagen.id3 import (
     ID3, APIC, TIT2, TPE1, TALB, TDRC, TRCK, TPOS, WOAR, COMM, ID3NoHeaderError
 )
 
+def sanitize_filename(filename: str) -> str:
+    # Заменим все запрещённые символы на _
+    return re.sub(r'[\\/:"*?<>|]+', '_', filename)
 
 def extract_year(date_str):
     try:
@@ -28,6 +32,8 @@ def extract_year(date_str):
 
 def track_download_path(entity_id):
     tr = db_utils.get_track(entity_id)
+    if tr and not tr['track_id']:
+        return None
     # if not tr.entity_id:
     #     return { "dir_path": dir_path, "filename": filename, "fullpath": os.path.join(dir_path, filename)}
     year = tr['year'] if tr['year'] is not None else extract_year(tr['release_date']) if tr['release_date']  is not None else "EP"
@@ -38,8 +44,9 @@ def track_download_path(entity_id):
 
     artist_folder = tr['artists_name']
     album_folder = f"{year} - {tr['album_title']}"
-    dir_path = os.path.join("storage/downloads", artist_folder, album_folder)
+    dir_path = os.path.join("storage", "downloads", artist_folder, album_folder)
     filename = f"{track_number} - {tr['title']}.mp3"
+    filename = sanitize_filename(filename)
     # npyscreen.notify_confirm(f"{tr}", title=f"tr")
     # base_path = f"downloads/{tr['artists_name']}/{year} - {tr['album_title']}/{tr['track_index']} - {tr['title']}.mp3"
     return { "dir_path": dir_path, "filename": filename, "fullpath": os.path.join(dir_path, filename)}
@@ -64,7 +71,9 @@ def track_download(entity_id, symlink_to = None):
         # symlink
         if symlink_to:
             symlink_dir  = os.path.join('storage', symlink_to)
-            symlink_path = os.path.join(symlink_dir, f"{track_obj.id} - {track_obj.title}.mp3")
+            symlink_name = f"{track_obj.id} - {track_obj.title}.mp3"
+            symlink_name = sanitize_filename(symlink_name)
+            symlink_path = os.path.join(symlink_dir, symlink_name)
             if not os.path.exists(symlink_dir):
                 logging.warning(f"mkdir for symlink: {symlink_dir}")
                 os.makedirs(symlink_dir, exist_ok=True)

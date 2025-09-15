@@ -66,9 +66,11 @@ class TuiCommonTableForm(TuiCommonForm):
         self.list_start = getattr(self.list_widget, 'start_display_at', 0)
         self.list_end = min(self.list_start + self.list_height, self.list_total)
         self.list_pos = self.list_widget.cursor_line
-        self.list_item = self.list_data[self.list_pos]
+        self.list_item = self.list_data[self.list_pos] if len(self.list_data) > self.list_pos else {}
         # if self.list_total > 0:
-        self.list_status.value = f"L {self.list_start+1}+{self.list_pos} {self.list_start+1+self.list_pos}/{self.list_total} ({self.list_height}ipp)"
+        self.list_status.value = f"L {self.list_start+1}+{self.list_pos-self.list_start} {1+self.list_pos}/{self.list_total} ({self.list_height}ipp)"
+        if hasattr(self, 'sync'):
+            self.list_status.value+= f" {self.sync.task_queue.qsize()} in queue"
         
         
         self.list_status.display()
